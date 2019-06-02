@@ -32,16 +32,17 @@ int main() {
 
         cl::Program program(context, source);
 
-        size_t const block_size = 1;
-        program.build(devices, "-D BLOCK_SIZE=1");
+        size_t const block_size = 16;
+        program.build(devices,  "-D BLOCK_SIZE=16");
 
         size_t N = 0;
         size_t M = 0;
         std::cin >> N >> M;
 
-        int a[N*N];
-        int b[M*M];
-        int c[N*N];
+        double a[N*N];
+        double b[M*M];
+        double c[N*N];
+
         for (size_t i = 0; i < N; ++i) {
             for (size_t j = 0; j < N; ++j) {
                 size_t idx = i * N + j;
@@ -57,19 +58,21 @@ int main() {
         }
 
 
-        cl::Buffer dev_a(context, CL_MEM_READ_ONLY, sizeof(int) * N * N);
-        cl::Buffer dev_b(context, CL_MEM_READ_ONLY, sizeof(int) * M * M);
-        cl::Buffer dev_c(context, CL_MEM_WRITE_ONLY, sizeof(int) * N * N);
+        cl::Buffer dev_a(context, CL_MEM_READ_ONLY, sizeof(double) * N * N);
+        cl::Buffer dev_b(context, CL_MEM_READ_ONLY, sizeof(double) * M * M);
+        cl::Buffer dev_c(context, CL_MEM_WRITE_ONLY, sizeof(double) * N * N);
 
-        queue.enqueueWriteBuffer(dev_a, CL_TRUE, 0, sizeof(int) * N * N, a);
-        queue.enqueueWriteBuffer(dev_b, CL_TRUE, 0, sizeof(int) * M * M, b);
+        queue.enqueueWriteBuffer(dev_a, CL_TRUE, 0, sizeof(double) * N * N, a);
+        queue.enqueueWriteBuffer(dev_b, CL_TRUE, 0, sizeof(double) * M * M, b);
 
         cl::Kernel kernel(program, "matrix_conv");
-        cl::KernelFunctor matrix_conv(kernel, queue, cl::NullRange, cl::NDRange(N, N),
-                                      cl::NDRange(block_size, block_size));
+        size_t t = ((N + block_size - 1)/block_size) * block_size;
+        cl::KernelFunctor matrix_conv(kernel, queue, cl::NullRange,
+                cl::NDRange(t, t),
+                cl::NDRange(block_size, block_size));
         matrix_conv(dev_a, dev_b, dev_c, (int)N, (int)M);
 
-        queue.enqueueReadBuffer(dev_c, CL_TRUE, 0, sizeof(int) * N * N, c);
+        queue.enqueueReadBuffer(dev_c, CL_TRUE, 0, sizeof(double) * N * N, c);
 
         for (size_t i = 0; i < N; ++i) {
             for (size_t j = 0; j < N; ++j) {
@@ -78,8 +81,7 @@ int main() {
             }
             std::cout << '\n';
         }
-    } catch (cl::Error const & e)
-    {
+    } catch (cl::Error const &e) {
         std::cout << std::endl << e.what() << " : " << e.err() << std::endl;
     }
 }
